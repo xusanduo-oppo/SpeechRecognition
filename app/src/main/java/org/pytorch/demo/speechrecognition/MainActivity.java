@@ -7,6 +7,7 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
@@ -83,12 +84,12 @@ public class MainActivity extends AppCompatActivity implements Runnable {
         }
     }
 
-
+    private Context mContext;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        mContext = this;
         mButton = findViewById(R.id.btnRecognize);
         mTextView = findViewById(R.id.tvResult);
 
@@ -188,8 +189,15 @@ public class MainActivity extends AppCompatActivity implements Runnable {
         }
         byte[] tmp = new byte[RECORDING_LENGTH * 2];
         ByteBuffer.wrap(tmp).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(recordingBuffer);
+        File docPath = null;
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R){
+            docPath = mContext.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+        }else {
+            docPath = Environment.getExternalStorageDirectory();
+        }
         try {
-            final File inFile = new File("/sdcard/" + "in" + "_music.pcm");
+//            final File inFile = new File("/sdcard/" + "in" + "_music.pcm");
+            final File inFile = new File(docPath,  "in" + "_music.pcm");
             FileOutputStream inStream = new FileOutputStream(inFile);
             inStream.write(tmp, 0, tmp.length);
         } catch (Exception e) {
@@ -200,7 +208,8 @@ public class MainActivity extends AppCompatActivity implements Runnable {
         byte result[] = recognize(floatInputBuffer);
 //        final String result = recognize(floatInputBuffer);
         try {
-            final File writeFile = new File("/sdcard/" + "test" + "_music.pcm");
+//            final File writeFile = new File("/sdcard/" + "test" + "_music.pcm");
+            final File writeFile = new File(docPath ,"test" + "_music.pcm");
             FileOutputStream outputStream = new FileOutputStream(writeFile);
             outputStream.write(result, 0, result.length);
         } catch (Exception e) {
@@ -219,7 +228,7 @@ public class MainActivity extends AppCompatActivity implements Runnable {
 
     private byte[] recognize(float[] floatInputBuffer) {
         if (module == null) {
-            module = LiteModuleLoader.load(assetFilePath(getApplicationContext(), "dcunet_OK.ptl"));
+            module = LiteModuleLoader.load(assetFilePath(getApplicationContext(), "dcunet.ptl"));
         }
         short out[] = new short[RECORDING_LENGTH];
 //        double wav2vecinput[] = new double[RECORDING_LENGTH];
@@ -227,6 +236,8 @@ public class MainActivity extends AppCompatActivity implements Runnable {
 //            wav2vecinput[n] = floatInputBuffer[n];
 
         long num_chunks = RECORDING_LENGTH / HOP_CHUNK + 1;
+//        showTranslationResult("process end");
+
         float frame[] = new float[ENH_CHUNK];
         int c;
         for (c = 0; c < num_chunks * HOP_CHUNK; c += HOP_CHUNK) {
@@ -265,7 +276,14 @@ public class MainActivity extends AppCompatActivity implements Runnable {
             float[] float_out = outTensor.getDataAsFloatArray();
             for(int i=0;i<HOP_CHUNK;++i)
             {
-                out[c] = (short) (float_out[i+ENH_CHUNK-HOP_CHUNK]);
+                if(c+i<RECORDING_LENGTH)
+                {
+                    out[c+i] = (short) (float_out[i+ENH_CHUNK-HOP_CHUNK]/10);
+                }
+                else
+                {
+                    break;
+                }
             }
 //            nnet_process_one_frame(pDcunet, frame, Outdata+c, atoi(argv[4]), gpu_id);
         }
